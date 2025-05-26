@@ -60,7 +60,7 @@ exports.getUserOrders = async (req, res) => {
 // ✅ Stripe Checkout
 exports.createStripeCheckout = async (req, res) => {
   console.log("Creating Stripe Checkout Session with data:");
-  
+
   try {
     const {
       hotelName,
@@ -75,21 +75,34 @@ exports.createStripeCheckout = async (req, res) => {
       return res.status(400).json({ error: 'No items provided for the order' });
     }
 
-    // Prepare line items for Stripe from order items
+    // Create the order first in the database
+    const newOrder = await Order.create({
+      hotelName,
+      items,
+      note,
+      totalQuantity,
+      amount: totalPrice,
+      status: status || 'pending',
+      date: new Date().toISOString(),
+      paymentMethod: 'Online',
+      user: req.user?.id || '664d2a14d4a8b99f7c4fc000'
+    });
+
+    // Prepare Stripe line items
     const lineItems = items.map(item => ({
-  price_data: {
-    currency: 'inr',
-    product_data: {
-      name: `${item.name} (${item.unit})`,
-      description: `Qty: ${item.quantity}, ₹${item.price.toFixed(2)} each`,
-      images: ['https://kalamkar-exotics-backend.onrender.com/images/stripeImage.png'], 
-    },
-    unit_amount: Math.round(item.price * 100),
-  },
-  quantity: Number(item.quantity),
-}));
+      price_data: {
+        currency: 'inr',
+        product_data: {
+          name: `${item.name} (${item.unit})`,
+          description: `Qty: ${item.quantity}, ₹${item.price.toFixed(2)} each`,
+          images: ['https://kalamkar-exotics-backend.onrender.com/images/stripeImage.png'],
+        },
+        unit_amount: Math.round(item.price * 100),
+      },
+      quantity: Number(item.quantity),
+    }));
 
-
+    // Create Stripe checkout session
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       line_items: lineItems,
@@ -97,14 +110,7 @@ exports.createStripeCheckout = async (req, res) => {
       success_url: `${process.env.CLIENT_URL}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${process.env.CLIENT_URL}/payment-cancel`,
       metadata: {
-        hotelName,
-        items: JSON.stringify(items),
-        note,
-        totalQuantity,
-        status,
-        totalPrice,
-        userId: req.user?.id || '664d2a14d4a8b99f7c4fc000',
-        paymentMethod: 'Online'
+        orderId: newOrder._id.toString()
       }
     });
 
@@ -129,31 +135,19 @@ exports.handleStripeWebhook = async (req, res) => {
 
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object;
-    const {
-      hotelName,
-      items,
-      note,
-      totalQuantity,
-      status,
-      totalPrice,
-      userId,
-      paymentMethod
-    } = session.metadata;
+    const orderId = session.metadata.orderId;
 
     try {
-      await Order.create({
-        hotelName,
-        items: JSON.parse(items),
-        note,
-        totalQuantity: Number(totalQuantity),
-        amount: Number(totalPrice),
-        status: status || 'Paid',
-        date: new Date().toISOString(),
-        user: userId,
-        paymentMethod
-      });
+      const order = await Order.findById(orderId);
+      if (order) {
+        order.status = 'Paid';
+        await order.save();
+        console.log(`✅ Order ${orderId} marked as Paid`);
+      } else {
+        console.warn(`⚠️ Order ID ${orderId} not found in DB`);
+      }
     } catch (err) {
-      console.error('Failed to save order from Stripe webhook:', err);
+      console.error('Failed to update order from Stripe webhook:', err);
     }
   }
 
