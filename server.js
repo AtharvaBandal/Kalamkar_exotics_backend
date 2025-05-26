@@ -21,6 +21,7 @@ app.post(
 );
 
 // Static files
+app.use(express.static('public'));
 app.use('/profile-images', express.static(path.join(__dirname, 'public/profile-images')));
 app.use('/images', express.static(path.join(__dirname, 'public/images')));
 
