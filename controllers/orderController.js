@@ -82,7 +82,7 @@ exports.createStripeCheckout = async (req, res) => {
     product_data: {
       name: `${item.name} (${item.unit})`,
       description: `Qty: ${item.quantity}, ₹${item.price.toFixed(2)} each`,
-       images: ['../images/stripeImage'] ,
+      images: ['https://kalamkar-exotics-backend.onrender.com/images/stripelmage.png'], 
     },
     unit_amount: Math.round(item.price * 100),
   },
