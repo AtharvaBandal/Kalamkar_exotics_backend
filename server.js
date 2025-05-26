@@ -25,7 +25,8 @@ app.use('/profile-images', express.static(path.join(__dirname, 'public/profile-i
 
 // Middleware
 app.use(cors({
-  
+  origin: 'https://kalamkarexotics.netlify.app',
+  credentials: true
 }));
 app.use(express.json()); // Must come AFTER the raw body handler above
 
