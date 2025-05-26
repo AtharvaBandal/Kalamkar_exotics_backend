@@ -22,6 +22,8 @@ app.post(
 
 // Static files
 app.use('/profile-images', express.static(path.join(__dirname, 'public/profile-images')));
+app.use('/images', express.static(path.join(__dirname, 'public/images')));
+
 
 // Middleware
 app.use(cors({
